@@ -10,16 +10,25 @@
   --ink: #26241f;
   --ink-soft: #837c6c;
   --page-bg: #eceae4;
-  --card: #ffffff;
-  --shell: #f6f4ee;
-  --border: #ece7d9;
+  --red-deep: #5e1220;
+  --red-mid: #a32d3c;
+  --red-light: #e8a3a9;
+  --card: rgba(255, 255, 255, 0.75);
+  --shell: rgba(255, 255, 255, 0.55);
+  --border: rgba(94, 18, 32, 0.14);
   --danger: #b3543f;
   --danger-light: #f8e9e5;
-  --radius-lg: 22px;
-  --radius-md: 14px;
-  --radius-sm: 10px;
+  --radius-lg: 9px;
+  --radius-md: 6px;
+  --radius-sm: 4px;
   --shadow: 0 2px 10px rgba(38, 36, 31, 0.05), 0 1px 3px rgba(38, 36, 31, 0.04);
   --shadow-lift: 0 10px 30px rgba(38, 36, 31, 0.08);
+  --glass-blur: blur(18px);
+  --page-gradient:
+    radial-gradient(ellipse 900px 600px at 12% -12%, rgba(255,255,255,0.12), transparent 60%),
+    radial-gradient(ellipse 800px 700px at 112% 18%, rgba(255,255,255,0.10), transparent 55%),
+    radial-gradient(ellipse 750px 900px at -12% 92%, rgba(0,0,0,0.16), transparent 58%),
+    linear-gradient(155deg, var(--red-deep) 0%, var(--red-mid) 55%, var(--red-light) 100%);
 }
 
 * { box-sizing: border-box; }
@@ -27,7 +36,9 @@
 html, body {
   margin: 0;
   padding: 0;
-  background: var(--page-bg);
+  min-height: 100vh;
+  background: var(--page-gradient);
+  background-attachment: fixed;
   color: var(--ink);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
   font-size: 14.5px;
@@ -36,6 +47,18 @@ html, body {
 
 a { color: var(--teal-dark); text-decoration: none; }
 a:hover { text-decoration: underline; }
+
+/* 毛玻璃容器：所有承載資料的白底卡片統一套用 */
+.sidebar,
+.topbar-mini,
+.hello-card,
+.card,
+.filter-group,
+.login-card,
+.chapter-nav {
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
 
 svg.icon { width: 18px; height: 18px; flex-shrink: 0; }
 
@@ -384,7 +407,7 @@ input:focus, select:focus, textarea:focus {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--page-bg);
+  background: var(--page-gradient);
 }
 .login-card {
   width: 372px;
@@ -510,7 +533,12 @@ input:focus, select:focus, textarea:focus {
 }
 @media (max-width: 900px) { .members-shell { grid-template-columns: 1fr; } }
 
-.chapter-nav { padding: 8px; }
+.chapter-nav {
+  padding: 8px;
+  background: var(--card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+}
 .chapter-nav .region-label {
   font-size: 11px;
   font-weight: 800;
