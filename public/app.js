@@ -21,7 +21,6 @@
     statusMode: 'active', // 'active' | 'all'
     filterIndustries: new Set(),
     filterChapters: new Set(),
-    expandedChapters: new Set(),
     isEditingRegion: false,
     regionNameDraft: '',
     memberSearch: '',
@@ -64,7 +63,6 @@
     const execDirectors = members
       .filter((m) => m.execDirector)
       .map((m) => ({ name: m.name, chapterName: chMap[m.chapterId] ? chMap[m.chapterId].name : '' }));
-    const execDirectorNames = execDirectors.map((e) => e.name).join('、') || '—';
 
     const chapterCounts = chapters.map((ch) => ({ id: ch.id, name: ch.name, count: filtered.filter((m) => m.chapterId === ch.id).length }));
     const maxChapterCount = Math.max(1, ...chapterCounts.map((c) => c.count));
@@ -112,16 +110,6 @@
       };
     });
 
-    const treeChapters = chapters.map((ch) => {
-      const r = roleHolders(ch.id);
-      const expanded = state.expandedChapters.has(ch.id);
-      return {
-        id: ch.id, name: ch.name, total: r.total, active: r.active, inactive: r.total - r.active,
-        chairman: r.chairman ? r.chairman.name : '—', vice: r.vice ? r.vice.name : '—', secretary: r.secretary ? r.secretary.name : '—',
-        expanded, arrow: expanded ? '▾' : '▸',
-      };
-    });
-
     const searchLower = state.memberSearch.trim();
     const searched = searchLower ? filtered.filter((m) => m.name.includes(searchLower)) : filtered;
     const pageSize = 20;
@@ -163,8 +151,8 @@
       isDashboard: state.view === 'dashboard', isMembers: state.view === 'members', isChapters: state.view === 'chapters',
       showSidebar: state.view === 'dashboard' || state.view === 'members',
       filterSummary, kpiTotalMembers, kpiChapterCount, kpiIndustryCount, kpiRolesFilled, kpiRolesTotal: rolesTotal,
-      execDirectors, execDirectorNames,
-      chapterBars, professionBars, industryFilterRows, chapterFilterRows, rosterRows, treeChapters,
+      execDirectors,
+      chapterBars, professionBars, industryFilterRows, chapterFilterRows, rosterRows,
       memberRows, memberTotalCount, memberPage: page, memberTotalPages,
       isFirstPage: page <= 1, isLastPage: page >= memberTotalPages,
       chapterCards,
@@ -327,31 +315,6 @@
           </tbody>
         </table>
       </div>
-
-      <div class="card blueprint elev-sm">${corners()}
-        <div class="card-kicker">組織層級</div>
-        <div style="margin-top:6px">
-          <div style="font-family:var(--font-heading);font-weight:600;font-size:16px;padding:6px 0">
-            ${esc(v.region.name)}（區域） — 執董：${esc(v.execDirectorNames)}
-          </div>
-          <div style="padding-left:16px;border-left:1px solid var(--color-divider);display:flex;flex-direction:column;gap:2px">
-            ${v.treeChapters.map((node) => `
-              <div>
-                <div style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer" data-action="toggle-chapter-expand" data-id="${node.id}">
-                  <span style="width:14px;text-align:center">${node.arrow}</span>
-                  <span style="font-family:var(--font-heading);font-weight:600">${esc(node.name)}（分會）</span>
-                  <span class="tag tag-neutral">${node.total} 人</span>
-                </div>
-                ${node.expanded ? `
-                  <div style="padding:2px 0 12px 22px;font-size:13px;display:flex;flex-direction:column;gap:4px">
-                    <div>主席：${esc(node.chairman)}　副主席：${esc(node.vice)}　秘財：${esc(node.secretary)}</div>
-                    <div class="text-muted">在會 ${node.active} ／ 離會 ${node.inactive}</div>
-                    <a href="#" data-action="view-chapter-members" data-id="${node.id}">查看會員列表 →</a>
-                  </div>` : ''}
-              </div>`).join('')}
-          </div>
-        </div>
-      </div>
     </div>`;
   }
 
@@ -482,11 +445,6 @@
     }
     if (action === 'clear-industry-filter') { state.filterIndustries.clear(); return render(); }
     if (action === 'clear-chapter-filter') { state.filterChapters.clear(); return render(); }
-    if (action === 'toggle-chapter-expand') {
-      const id = Number(el.dataset.id);
-      if (state.expandedChapters.has(id)) state.expandedChapters.delete(id); else state.expandedChapters.add(id);
-      return render();
-    }
     if (action === 'view-chapter-members') {
       e.preventDefault();
       const id = Number(el.dataset.id);
