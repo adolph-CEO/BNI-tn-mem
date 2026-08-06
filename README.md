@@ -1,16 +1,14 @@
-# BNI 會員管理系統
+# CRM 會員管理系統
 
-區域 → 分會 → 會員三層式資料管理平台。Node.js + Express 伺服器端渲染，資料庫使用 PostgreSQL，可直接部署到 Vercel（搭配 Neon / Vercel Postgres 等雲端資料庫），也可部署到任何支援 Node.js 的平台。
+區域 → 分會 → 會員的會員管理平台。單一公開頁面（無登入、無帳號權限），前端為 vanilla JS 單頁應用，後端 Node.js + Express 提供 JSON API，資料庫使用 PostgreSQL，可直接部署到 Vercel（搭配 Neon / Vercel Postgres 等雲端資料庫），也可部署到任何支援 Node.js 的平台。
 
 ## 系統架構
 
-- **區域（Region）**：最上層，由「執行董事（執董）」管理。
-- **分會（Chapter）**：隸屬於區域，每個分會由 1~2 位「董事顧問（董顧）」管理。
-- **會員（Member）**：隸屬於唯一一個分會，具有姓名、專業別、在籍狀態。會員本人也可能同時是另一個分會的董顧，或是區域執董——系統會即時運算顯示「目前管理職務」，不需手動同步。
-- **帳號角色**：
-  - `admin` 超級管理員：系統初始帳號，可停用，擁有全部權限。
-  - `executive` 執行董事：管理所屬區域內所有分會與會員，可建立/停用該區域的董顧帳號。
-  - `advisor` 董事顧問：僅能管理被指派的 1~2 個分會之會員資料。
+- **區域（Region）**：最上層，僅一個，名稱可於畫面上直接重新命名。
+- **分會（Chapter）**：隸屬於區域，名稱可直接重新命名。
+- **會員（Member）**：隸屬於唯一一個分會，具有姓名、專業別、在籍狀態；可指派「主席／副主席／秘財」職務（每項職務同一分會僅一人），並可標記是否為「執行董事」——職務直接掛在會員身上，不需另外開帳號。
+- **行業別 / 專業別**：專業別一對一歸屬於某個行業別（例如「會計記帳」屬於「專業服務」）。
+- **無登入**：全站公開，所有人看到並操作同一份資料，沒有角色分層權限。
 
 ## 快速開始（本機開發）
 
@@ -26,26 +24,22 @@ npm run seed          # 建立資料表結構 + Demo 資料
 npm run start:env     # 啟動伺服器，預設 http://localhost:3000
 ```
 
-首次啟動（未執行過 `npm run seed`）也會自動建立資料表與一組超級管理帳號，帳密預設 `admin` / `admin1234`（可用環境變數 `ADMIN_USERNAME` / `ADMIN_PASSWORD` 覆寫）。**正式上線前請務必登入後於「職務設定」建立正式執董/董顧帳號，再將 admin 帳號停用。**
+首次啟動會自動建立/遷移資料表結構（`db.ensureSchema()`），不需要額外的帳號設定步驟。
 
-## Demo 帳號（執行 `npm run seed` 後）
+## Demo 資料（執行 `npm run seed` 後）
 
-| 角色 | 帳號 | 密碼 | 說明 |
-|---|---|---|---|
-| 超級管理員 | admin | admin1234 | 初始帳號，可停用 |
-| 執行董事 | director01 | director123 | 管理台南區全部 4 個分會 |
-| 董事顧問 | advisor01 | advisor123 | 管理台南信義分會 |
-| 董事顧問 | advisor02 | advisor123 | 管理台南永華分會 |
-| 董事顧問 | advisor03 | advisor123 | 會籍在信義分會，管理台南**安平**分會（跨分會管理示範） |
-| 董事顧問 | advisor04 | advisor123 | 管理台南安平分會（與 advisor03 共同管理，示範一分會 2 位董顧） |
-| 董事顧問 | advisor05 | advisor123 | 管理台南新營分會 |
+1 區域（台南區）、4 分會、20 位會員、10 種專業別、5 個行業別；每個分會都有主席／副主席／秘財，2 位會員標記為執行董事，2 位會員標記為離會（示範篩選）。
 
 ## 功能總覽
 
-- **會員資料**：清單依分會（勾選複選）、專業別（勾選複選）篩選，預設不顯示已離會會員；可搜尋姓名；「離會」「恢復在籍」一鍵切換。
-- **Excel 匯入**：支援 `.xlsx` / `.xls` / `.csv`，自動辨識「姓名／分會／專業別」欄位標題，分會需與現有分會名稱相符，專業別若不存在會自動建立；同分會同姓名視為既有會員並更新其專業別。匯入結果會列出未成功的資料列與原因。
-- **專業別 / 行業標籤**：列出各分會的專業別分佈，並可將專業別歸屬到多個行業標籤（例如「會計記帳」「不動產仲介」同時屬於「專業服務」）。
-- **職務設定**：新增區域、分會；建立執董／董顧帳號並指派管理範圍；帳號啟用／停用；一個分會最多可指派 2 位董顧（超過會擋下並提示）。
+- **儀表板**：KPI 卡片（總會員數／分會數量／涵蓋行業別／領導職務就位比例）、各分會人數與專業別分布長條圖、主席／副主席／秘財名冊總覽、可展開的組織層級樹。
+- **會員列表**：依會員狀態（僅在會／含離會）、行業別、分會篩選（左側欄，帶即時計數）；姓名搜尋；分頁；CSV 匯入（欄位順序：姓名, 分會, 專業別, 狀態）；一鍵設為離會／恢復在會。
+- **分會管理**：卡片式呈現各分會，可行內重新命名；可展開指派主席／副主席／秘財（僅能指派該分會的在籍會員）。
+- 區域名稱可在頂部導覽列直接重新命名。
+
+## 資料模型遷移說明
+
+這個版本把資料模型從「帳號登入 + 分層權限（admin/執董/董顧帳號、分會幹部另開關聯表）」簡化為「職務直接掛在會員身上、專業別一對一歸屬行業別」。遷移是**加欄位、不刪資料**：`members` 新增 `role` / `exec_director` 欄位並自動從舊版 `chapter_officers` / `users` 表回填；`professions` 新增 `industry_id` 欄位並自動從舊版多對多的 `profession_industry_tags` 回填（一個專業別若舊版掛了多個行業標籤，遷移後只保留其中一個）。舊表格本身目前仍保留在資料庫中未刪除，供之後確認新版穩定運作後再清理。
 
 ## 部署到 Vercel + GitHub
 
@@ -65,7 +59,7 @@ npm run start:env     # 啟動伺服器，預設 http://localhost:3000
 cd bni
 git init
 git add .
-git commit -m "Initial commit: BNI 會員管理系統"
+git commit -m "Initial commit: CRM 會員管理系統"
 git branch -M main
 git remote add origin https://github.com/<您的帳號>/<repo名稱>.git
 git push -u origin main
@@ -82,12 +76,9 @@ git push -u origin main
    | 變數 | 值 |
    |---|---|
    | `DATABASE_URL` | 步驟 1 取得的 Postgres 連線字串 |
-   | `SESSION_SECRET` | 一組隨機字串，例如用 `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` 產生 |
-   | `ADMIN_USERNAME` | 選填，預設 `admin` |
-   | `ADMIN_PASSWORD` | 建議自行設定，避免使用預設密碼 |
 
 4. 點 Deploy。完成後 Vercel 會給您一個 `https://xxxx.vercel.app` 網址。
-5. 第一次開啟網站時，系統會自動建立資料表結構與超級管理帳號（訊息會印在 Vercel 的 Function Logs 裡，或直接用您設定的 `ADMIN_USERNAME` / `ADMIN_PASSWORD` 登入）。若要載入 Demo 資料，需在本機（或任何能連到同一個 `DATABASE_URL` 的環境）執行一次 `DATABASE_URL=... npm run seed`。
+5. 第一次開啟網站時，系統會自動建立/遷移資料表結構。若要載入 Demo 資料，需在本機（或任何能連到同一個 `DATABASE_URL` 的環境）執行一次 `DATABASE_URL=... npm run seed`。
 
 ### 為什麼不能用原本的 SQLite？
 
@@ -100,8 +91,6 @@ Vercel 是無伺服器（serverless）架構，函式執行完就會被回收，
 | 變數 | 說明 |
 |---|---|
 | `DATABASE_URL` | PostgreSQL 連線字串（必填） |
-| `SESSION_SECRET` | Session 簽章密鑰（正式環境必填，否則每次冷啟動會讓所有人被登出） |
-| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | 初始超級管理帳號，僅在資料庫中尚無任何 admin 帳號時生效 |
 | `PORT` | 本機執行時的埠號，預設 3000（Vercel 上不需要） |
 
 ## 目錄結構
@@ -110,14 +99,17 @@ Vercel 是無伺服器（serverless）架構，函式執行完就會被回收，
 bni/
 ├── server.js            # Express app 定義（本機直接執行會呼叫 app.listen）
 ├── api/index.js         # Vercel Serverless 進入點（匯出同一個 app，不呼叫 listen）
-├── vercel.json           # 將所有路徑導向 api/index.js（style.css 例外，走靜態檔案）
-├── lib/                  # 資料庫連線、權限範圍、認證、匯入、Demo 資料等核心邏輯
-├── routes/                # Express 路由（auth / members / professions / org）
-├── views/                 # 伺服器端渲染的 HTML 樣板（純字串樣板，無框架依賴）
-├── public/style.css       # 金 + 淺湖水綠配色主題（卡片式／藥丸元件風格）
-└── data/                  # 僅用於本機開發時暫存 session 密鑰檔案（非資料庫）
+├── vercel.json           # 將所有路徑導向 api/index.js（style.css / app.js 例外，走靜態檔案）
+├── lib/                  # 資料庫連線、資料存取（crm-data.js）、Demo 資料
+├── routes/api.js          # JSON API（無登入，全站公開）
+├── views/shell.js         # 單頁應用的 HTML 殼層（內嵌初始資料）
+├── public/app.js          # 前端 vanilla JS（畫面渲染、篩選、分頁、CSV 匯入等互動）
+├── public/style.css       # 藍圖／工程圖風格設計系統
+└── data/                  # 本機開發用暫存目錄（非資料庫）
 ```
+
+`lib/`、`routes/`、`views/` 底下仍留有舊版（登入 + 伺服器端渲染多頁）的檔案未刪除，但 `server.js` 已不再引用，屬於未使用的死碼，之後確認新版穩定後可以清理。
 
 ## 技術選型說明
 
-刻意不使用 Next.js / React 等前端框架，改採 Express + 伺服器端字串樣板：頁面皆為傳統表單送出（無需 JavaScript 建置流程），部署與維運更單純。資料層改用 PostgreSQL 是為了相容 Vercel 等 serverless 平台的無狀態特性；若未來不考慮 serverless 部署，這套程式碼同樣能跑在任何一般 Node.js 主機上。
+前端刻意不使用 React / Vue 等框架，改採 vanilla JS 直接操作 DOM（單一 `public/app.js`，資料量小，全部載入前端做篩選/搜尋/分頁即可，不需要框架的複雜度）。後端維持 Express + PostgreSQL，資料層改用 PostgreSQL 是為了相容 Vercel 等 serverless 平台的無狀態特性；若未來不考慮 serverless 部署，這套程式碼同樣能跑在任何一般 Node.js 主機上。
