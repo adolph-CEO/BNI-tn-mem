@@ -18,7 +18,7 @@ router.get(
 
     const chapters = scopeChapterIds.length
       ? await db.all(
-          `SELECT id, name FROM chapters WHERE id IN (${scopeChapterIds.map(() => '?').join(',')}) ORDER BY name`,
+          `SELECT id, name FROM chapters WHERE id IN (${scopeChapterIds.map(() => '?').join(',')}) ORDER BY sort_order NULLS LAST, name`,
           scopeChapterIds
         )
       : [];

@@ -9,89 +9,103 @@ const router = express.Router();
 const db = require('../lib/db');
 const { requireAuth, requireRole } = require('../lib/auth');
 const { chapterIdsForUser, canAccessChapter } = require('../lib/scope');
-const { listMembers } = require('../lib/members-repo');
+const { listMembers, getChapterOfficers } = require('../lib/members-repo');
 const { layout } = require('../views/layout');
 const { membersPage, memberFormPage, importPage } = require('../views/members');
 const { ah } = require('../lib/async-handler');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
-function toArray(v) {
-  if (v === undefined || v === null || v === '') return [];
-  return Array.isArray(v) ? v.map(Number) : [Number(v)];
-}
-
 async function accessibleChapters(scopeChapterIds) {
   if (!scopeChapterIds.length) return [];
   return db.all(
-    `SELECT id, name FROM chapters WHERE id IN (${scopeChapterIds.map(() => '?').join(',')}) ORDER BY name`,
+    `SELECT id, name, region_id FROM chapters WHERE id IN (${scopeChapterIds.map(() => '?').join(',')}) ORDER BY sort_order NULLS LAST, name`,
     scopeChapterIds
   );
 }
 
-// ---------- 列表 ----------
+// 建立左側「區域 > 分會」樹狀導覽資料，僅包含使用者權限範圍內的分會
+async function buildChapterTree(user, scopeChapterIds) {
+  if (!scopeChapterIds.length) return [];
+
+  let regionRows;
+  if (user.role === 'admin') {
+    regionRows = await db.all('SELECT * FROM regions ORDER BY id');
+  } else if (user.role === 'executive') {
+    regionRows = await db.all('SELECT * FROM regions WHERE id = ?', [user.region_id]);
+  } else {
+    regionRows = await db.all(
+      `SELECT DISTINCT r.* FROM regions r
+       JOIN chapters c ON c.region_id = r.id
+       WHERE c.id IN (${scopeChapterIds.map(() => '?').join(',')})
+       ORDER BY r.id`,
+      scopeChapterIds
+    );
+  }
+
+  const tree = [];
+  for (const region of regionRows) {
+    const chapters = await db.all(
+      `SELECT c.*,
+        (SELECT STRING_AGG(u.display_name, '、') FROM chapter_advisors ca JOIN users u ON u.id = ca.user_id WHERE ca.chapter_id = c.id) AS advisor_names
+       FROM chapters c
+       WHERE c.region_id = ? AND c.id IN (${scopeChapterIds.map(() => '?').join(',')})
+       ORDER BY c.sort_order NULLS LAST, c.name`,
+      [region.id, ...scopeChapterIds]
+    );
+    if (chapters.length) {
+      tree.push({ ...region, chapters });
+    }
+  }
+  return tree;
+}
+
+// ---------- 主頁：區域/分會樹狀導覽 + 選定分會明細 ----------
 
 router.get(
   '/members',
   requireAuth,
   ah(async (req, res) => {
     const scopeChapterIds = await chapterIdsForUser(req.user);
-    const chapters = await accessibleChapters(scopeChapterIds);
-    const professions = await db.all('SELECT id, name FROM professions ORDER BY name');
+    const tree = await buildChapterTree(req.user, scopeChapterIds);
+    const allChapters = tree.flatMap((r) => r.chapters);
+    const allChapterIds = allChapters.map((c) => c.id);
 
-    const filters = {
-      chapterIds: toArray(req.query.chapter),
-      professionIds: toArray(req.query.profession),
-      showLeft: req.query.show_left === '1',
-      q: (req.query.q || '').trim(),
-    };
+    let selectedChapterId = req.query.chapter ? Number(req.query.chapter) : null;
+    if (!selectedChapterId || !allChapterIds.includes(selectedChapterId)) {
+      selectedChapterId = allChapterIds[0] || null;
+    }
 
-    const members = await listMembers({
-      chapterIds: filters.chapterIds,
-      professionIds: filters.professionIds,
-      showLeft: filters.showLeft,
-      search: filters.q,
-      scopeChapterIds,
-    });
+    let selectedChapter = null;
+    let officers = {};
+    let members = [];
+    if (selectedChapterId) {
+      selectedChapter = allChapters.find((c) => c.id === selectedChapterId) || null;
+      officers = await getChapterOfficers(selectedChapterId);
+      members = await listMembers({
+        chapterIds: [selectedChapterId],
+        scopeChapterIds,
+        showLeft: false,
+      });
+    }
 
     const canEdit = ['admin', 'executive', 'advisor'].includes(req.user.role);
     const canImport = ['admin', 'executive'].includes(req.user.role);
-
-    const showSummary = !filters.chapterIds.length && !filters.professionIds.length && !filters.q;
-    let summary = null;
-    if (showSummary) {
-      if (scopeChapterIds.length) {
-        const inClause = scopeChapterIds.map(() => '?').join(',');
-        const activeCount = (
-          await db.get(
-            `SELECT COUNT(*) AS c FROM members WHERE status = 'active' AND chapter_id IN (${inClause})`,
-            scopeChapterIds
-          )
-        ).c;
-        const leftCount = (
-          await db.get(
-            `SELECT COUNT(*) AS c FROM members WHERE status = 'left' AND chapter_id IN (${inClause})`,
-            scopeChapterIds
-          )
-        ).c;
-        const professionCount = (
-          await db.get(
-            `SELECT COUNT(DISTINCT profession_id) AS c FROM members WHERE profession_id IS NOT NULL AND chapter_id IN (${inClause})`,
-            scopeChapterIds
-          )
-        ).c;
-        summary = { active: activeCount, left: leftCount, chapters: chapters.length, professions: professionCount };
-      } else {
-        summary = { active: 0, left: 0, chapters: 0, professions: 0 };
-      }
-    }
 
     res.send(
       layout({
         title: '會員資料 — BNI 會員管理系統',
         user: req.user,
         path: '/members',
-        body: membersPage({ members, chapters, professions, filters, canEdit, canImport, user: req.user, summary }),
+        body: membersPage({
+          tree,
+          selectedChapterId,
+          selectedChapter,
+          officers,
+          members,
+          canEdit,
+          canImport,
+        }),
       })
     );
   })
@@ -106,12 +120,13 @@ router.get(
     const scopeChapterIds = await chapterIdsForUser(req.user);
     const chapters = await accessibleChapters(scopeChapterIds);
     const professions = await db.all('SELECT id, name FROM professions ORDER BY name');
+    const defaultChapterId = req.query.chapter ? Number(req.query.chapter) : null;
     res.send(
       layout({
         title: '新增會員',
         user: req.user,
         path: '/members',
-        body: memberFormPage({ member: null, chapters, professions }),
+        body: memberFormPage({ member: null, chapters, professions, defaultChapterId }),
       })
     );
   })
@@ -134,7 +149,7 @@ router.post(
       profession_id ? Number(profession_id) : null,
       notes || null,
     ]);
-    res.redirect('/members');
+    res.redirect(`/members?chapter=${Number(chapter_id)}`);
   })
 );
 
@@ -356,7 +371,7 @@ router.post(
       `UPDATE members SET name = ?, chapter_id = ?, profession_id = ?, notes = ?, updated_at = NOW() WHERE id = ?`,
       [String(name).trim(), Number(chapter_id), profession_id ? Number(profession_id) : null, notes || null, member.id]
     );
-    res.redirect('/members');
+    res.redirect(`/members?chapter=${Number(chapter_id)}`);
   })
 );
 
@@ -370,7 +385,7 @@ router.post(
       return res.status(403).send('權限不足。');
     }
     await db.run(`UPDATE members SET status = 'left', left_at = NOW() WHERE id = ?`, [member.id]);
-    res.redirect(req.headers.referer || '/members');
+    res.redirect(`/members?chapter=${member.chapter_id}`);
   })
 );
 
@@ -384,7 +399,7 @@ router.post(
       return res.status(403).send('權限不足。');
     }
     await db.run(`UPDATE members SET status = 'active', left_at = NULL WHERE id = ?`, [member.id]);
-    res.redirect(req.headers.referer || '/members');
+    res.redirect(`/members?chapter=${member.chapter_id}`);
   })
 );
 

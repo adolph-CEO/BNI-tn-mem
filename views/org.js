@@ -1,7 +1,26 @@
 // views/org.js
 'use strict';
 
-const { esc } = require('../lib/util');
+const { esc, OFFICER_ROLES, OFFICER_ROLE_LABEL } = require('../lib/util');
+
+function officerAssignForm(chapterId, role, roleLabel, chapterMembers, current) {
+  const options = chapterMembers
+    .map(
+      (m) =>
+        `<option value="${m.id}" ${current && current.member_id === m.id ? 'selected' : ''}>${esc(m.name)}</option>`
+    )
+    .join('');
+  return `
+  <form method="post" action="/org/chapters/${chapterId}/officers" class="officer-row">
+    <input type="hidden" name="role" value="${role}" />
+    <span class="officer-label">${roleLabel}</span>
+    <select name="member_id" style="width:auto;flex:1;">
+      <option value="">（未指派）</option>
+      ${options}
+    </select>
+    <button class="btn btn-outline btn-sm" type="submit">設定</button>
+  </form>`;
+}
 
 function memberOptions(members, selectedId) {
   const byChapter = new Map();
@@ -57,10 +76,31 @@ function orgPage({ user, regions, allMembers, isAdmin }) {
                 } ${accountToggleForm(a)}</span>`
             )
             .join(' ');
+          const memberRows = (ch.members || [])
+            .map((m) => `<div class="tree-member">${esc(m.name)}</div>`)
+            .join('');
+          const officerSummary = OFFICER_ROLES.map((role) => {
+            const o = ch.officers && ch.officers[role];
+            return `<span class="tag muted">${OFFICER_ROLE_LABEL[role]}：${o ? esc(o.name) : '未指派'}</span>`;
+          }).join('');
+          const officerForms = OFFICER_ROLES.map((role) =>
+            officerAssignForm(ch.id, role, OFFICER_ROLE_LABEL[role], ch.members || [], ch.officers && ch.officers[role])
+          ).join('');
           return `
-        <div class="chapter-card">
-          <div class="chapter-title">${esc(ch.name)}<span class="small">${ch.advisors.length}/2 位董顧</span></div>
-          <div class="advisors">${advisorTags || '<span class="small">尚未指派董顧</span>'}</div>
+        <div class="tree-chapter" draggable="true" data-chapter-id="${ch.id}">
+          <div class="tree-chapter-row">
+            <span class="drag-handle" title="拖曳排序">⠿</span>
+            <button type="button" class="tree-toggle" aria-expanded="false">▸</button>
+            <span class="tree-chapter-name">${esc(ch.name)}</span>
+            <span class="tree-advisors">董顧：${advisorTags || '<span class="small">尚未指派</span>'}</span>
+            <span class="small tree-meta">${ch.advisors.length}/2 位董顧 · ${(ch.members || []).length} 位在籍會員</span>
+          </div>
+          <div class="tree-members" hidden>
+            <div class="officer-summary">${officerSummary}</div>
+            <div class="officer-forms">${officerForms}</div>
+            <div class="tree-member-list-title small">在籍會員名單</div>
+            ${memberRows || '<div class="small" style="padding:6px 0;">尚無在籍會員</div>'}
+          </div>
         </div>`;
         })
         .join('');
@@ -94,7 +134,10 @@ function orgPage({ user, regions, allMembers, isAdmin }) {
         }
 
         <h3>分會與董事顧問（董顧）</h3>
-        ${chapterBlocks || '<p class="small">尚未建立分會</p>'}
+        <p class="small mt-0">拖曳 ⠿ 可調整分會顯示順序；點選 ▸ 可展開／收合該分會的在籍會員清單。</p>
+        <div class="tree" data-region-id="${region.id}">
+          ${chapterBlocks || '<p class="small">尚未建立分會</p>'}
+        </div>
 
         <details style="margin-top:10px;">
           <summary class="small" style="cursor:pointer;color:var(--teal-dark);font-weight:600;">+ 新增分會</summary>
@@ -155,6 +198,78 @@ function orgPage({ user, regions, allMembers, isAdmin }) {
   }
 
   ${regionBlocks || '<div class="empty-state">尚無區域資料</div>'}
+
+  <script>
+  (function () {
+    // 展開／收合分會會員清單
+    document.querySelectorAll('.tree-toggle').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var chapterEl = btn.closest('.tree-chapter');
+        var membersEl = chapterEl.querySelector('.tree-members');
+        var expanded = btn.getAttribute('aria-expanded') === 'true';
+        btn.setAttribute('aria-expanded', String(!expanded));
+        btn.textContent = expanded ? '▸' : '▾';
+        if (expanded) {
+          membersEl.setAttribute('hidden', '');
+        } else {
+          membersEl.removeAttribute('hidden');
+        }
+      });
+    });
+
+    // 拖曳排序分會（同一區域內）
+    function getDragAfterElement(container, y) {
+      var items = Array.prototype.slice.call(container.querySelectorAll('.tree-chapter:not(.dragging)'));
+      return items.reduce(
+        function (closest, child) {
+          var box = child.getBoundingClientRect();
+          var offset = y - box.top - box.height / 2;
+          if (offset < 0 && offset > closest.offset) {
+            return { offset: offset, element: child };
+          }
+          return closest;
+        },
+        { offset: -Infinity, element: null }
+      ).element;
+    }
+
+    document.querySelectorAll('.tree').forEach(function (tree) {
+      var regionId = tree.getAttribute('data-region-id');
+      var dragEl = null;
+
+      tree.querySelectorAll('.tree-chapter').forEach(function (item) {
+        item.addEventListener('dragstart', function (e) {
+          dragEl = item;
+          item.classList.add('dragging');
+          if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+        });
+        item.addEventListener('dragend', function () {
+          item.classList.remove('dragging');
+          dragEl = null;
+          var order = Array.prototype.map.call(tree.querySelectorAll('.tree-chapter'), function (el) {
+            return el.getAttribute('data-chapter-id');
+          });
+          fetch('/org/chapters/reorder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ region_id: regionId, order: order }),
+          }).catch(function () {});
+        });
+      });
+
+      tree.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        if (!dragEl) return;
+        var after = getDragAfterElement(tree, e.clientY);
+        if (after == null) {
+          tree.appendChild(dragEl);
+        } else {
+          tree.insertBefore(dragEl, after);
+        }
+      });
+    });
+  })();
+  </script>
   `;
 }
 

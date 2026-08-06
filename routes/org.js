@@ -8,6 +8,8 @@ const { requireAuth, requireRole, hashPassword } = require('../lib/auth');
 const { layout } = require('../views/layout');
 const { orgPage } = require('../views/org');
 const { ah } = require('../lib/async-handler');
+const { OFFICER_ROLES } = require('../lib/util');
+const { getChapterOfficers } = require('../lib/members-repo');
 
 async function loadOrgData(user) {
   const isAdmin = user.role === 'admin';
@@ -21,7 +23,10 @@ async function loadOrgData(user) {
       `SELECT * FROM users WHERE role = 'executive' AND region_id = ? ORDER BY id`,
       [region.id]
     );
-    const chapters = await db.all('SELECT * FROM chapters WHERE region_id = ? ORDER BY name', [region.id]);
+    const chapters = await db.all(
+      'SELECT * FROM chapters WHERE region_id = ? ORDER BY sort_order NULLS LAST, name',
+      [region.id]
+    );
     const chaptersWithAdvisors = [];
     for (const ch of chapters) {
       const advisors = await db.all(
@@ -30,7 +35,12 @@ async function loadOrgData(user) {
          WHERE ca.chapter_id = ? ORDER BY u.id`,
         [ch.id]
       );
-      chaptersWithAdvisors.push({ ...ch, advisors });
+      const members = await db.all(
+        `SELECT id, name, status FROM members WHERE chapter_id = ? AND status = 'active' ORDER BY name`,
+        [ch.id]
+      );
+      const officers = await getChapterOfficers(ch.id);
+      chaptersWithAdvisors.push({ ...ch, advisors, members, officers });
     }
     regions.push({ ...region, executives, chapters: chaptersWithAdvisors });
   }
@@ -83,8 +93,90 @@ router.post(
       return res.status(403).send('權限不足：您只能在自己的區域新增分會。');
     }
     if (name && regionId) {
-      await db.run('INSERT INTO chapters (region_id, name) VALUES (?, ?)', [regionId, name]);
+      const maxRow = await db.get('SELECT MAX(sort_order) AS m FROM chapters WHERE region_id = ?', [regionId]);
+      const nextOrder = (maxRow && maxRow.m ? Number(maxRow.m) : 0) + 1;
+      await db.run('INSERT INTO chapters (region_id, name, sort_order) VALUES (?, ?, ?)', [
+        regionId,
+        name,
+        nextOrder,
+      ]);
     }
+    res.redirect('/org');
+  })
+);
+
+// 拖拉排序：body 為 { region_id, order: [chapterId, ...] }（由前端依拖放後的畫面順序送出）
+router.post(
+  '/org/chapters/reorder',
+  requireAuth,
+  requireRole('admin', 'executive'),
+  ah(async (req, res) => {
+    const regionId = Number(req.body.region_id);
+    const order = Array.isArray(req.body.order) ? req.body.order.map(Number) : [];
+
+    if (req.user.role === 'executive' && regionId !== req.user.region_id) {
+      return res.status(403).json({ ok: false, error: '權限不足' });
+    }
+
+    const validChapters = await db.all('SELECT id FROM chapters WHERE region_id = ?', [regionId]);
+    const validIds = new Set(validChapters.map((r) => r.id));
+    const filteredOrder = order.filter((id) => validIds.has(id));
+
+    await db.withTransaction(async (tx) => {
+      for (let i = 0; i < filteredOrder.length; i++) {
+        await tx.run('UPDATE chapters SET sort_order = ? WHERE id = ? AND region_id = ?', [
+          i + 1,
+          filteredOrder[i],
+          regionId,
+        ]);
+      }
+    });
+
+    res.json({ ok: true });
+  })
+);
+
+// 指派／異動分會幹部（主席／副主席／秘書財務）：僅能指派該分會的在籍會員
+router.post(
+  '/org/chapters/:id/officers',
+  requireAuth,
+  requireRole('admin', 'executive'),
+  ah(async (req, res) => {
+    const chapterId = Number(req.params.id);
+    const role = String(req.body.role || '');
+    const memberId = req.body.member_id ? Number(req.body.member_id) : null;
+
+    if (!OFFICER_ROLES.includes(role)) {
+      return res.status(400).send('無效的幹部職位。');
+    }
+
+    const chapter = await db.get('SELECT * FROM chapters WHERE id = ?', [chapterId]);
+    if (!chapter) return res.status(404).send('找不到分會');
+    if (req.user.role === 'executive' && chapter.region_id !== req.user.region_id) {
+      return res.status(403).send('權限不足：您只能管理自己區域內的分會。');
+    }
+
+    if (!memberId) {
+      // 未選擇會員 = 清空該職位
+      await db.run('DELETE FROM chapter_officers WHERE chapter_id = ? AND role = ?', [chapterId, role]);
+      return res.redirect('/org');
+    }
+
+    const member = await db.get('SELECT * FROM members WHERE id = ?', [memberId]);
+    if (!member || member.chapter_id !== chapterId) {
+      return res.status(400).send('只能指派該分會的會員擔任幹部。');
+    }
+    if (member.status !== 'active') {
+      return res.status(400).send('只能指派在籍會員擔任幹部。');
+    }
+
+    await db.run(
+      `INSERT INTO chapter_officers (chapter_id, role, member_id, updated_at)
+       VALUES (?, ?, ?, NOW())
+       ON CONFLICT (chapter_id, role) DO UPDATE SET member_id = EXCLUDED.member_id, updated_at = NOW()`,
+      [chapterId, role, memberId]
+    );
+
     res.redirect('/org');
   })
 );

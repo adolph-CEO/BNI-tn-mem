@@ -1,140 +1,118 @@
 // views/members.js
 'use strict';
 
-const { esc, fmtDate } = require('../lib/util');
-const { managementRoleLabel } = require('../lib/members-repo');
+const { esc, fmtDate, OFFICER_ROLES, OFFICER_ROLE_LABEL } = require('../lib/util');
 
-function checklist(name, items, selectedIds) {
-  const sel = new Set((selectedIds || []).map(String));
-  return `<div class="checkbox-list">${items
-    .map(
-      (it) =>
-        `<label class="pill-check"><input type="checkbox" name="${name}" value="${it.id}" ${
-          sel.has(String(it.id)) ? 'checked' : ''
-        } /> ${esc(it.name)}</label>`
-    )
-    .join('')}</div>`;
+function chapterNav(tree, selectedChapterId) {
+  const blocks = tree
+    .map((region) => {
+      const items = region.chapters
+        .map((ch) => {
+          const active = ch.id === selectedChapterId;
+          return `<a class="chapter-nav-item${active ? ' active' : ''}" href="/members?chapter=${ch.id}">
+            <span>${esc(ch.name)}</span>
+            <span class="cn-advisor">${ch.advisor_names ? esc(ch.advisor_names) : '未指派'}</span>
+          </a>`;
+        })
+        .join('');
+      return `
+      <div>
+        <div class="region-label">${esc(region.name)}</div>
+        ${items}
+      </div>`;
+    })
+    .join('');
+
+  return `<div class="chapter-nav">${blocks || '<div class="empty-state small">尚無分會資料</div>'}</div>`;
 }
 
-function initials(name) {
-  if (!name) return '?';
-  return String(name).trim().slice(0, 1);
+function officerBar(selectedChapter, officers) {
+  if (!selectedChapter) return '';
+  const cells = OFFICER_ROLES.map((role) => {
+    const o = officers[role];
+    return `
+    <div class="officer-item">
+      ${OFFICER_ROLE_LABEL[role]}：<b>${o ? esc(o.name) : '未指派'}</b>
+      ${o && o.profession_name ? `<span class="prof">（${esc(o.profession_name)}）</span>` : ''}
+    </div>`;
+  }).join('');
+  return `<div class="officer-bar">${cells}</div>`;
 }
 
-function helloCard({ user, summary }) {
-  return `
-  <div class="hello-card">
-    <div class="top-row">
-      <div class="greet">
-        <div class="avatar-lg">${esc(initials(user.display_name))}</div>
-        <div>
-          <div class="sub">Hello ...</div>
-          <h1>${esc(user.display_name)}</h1>
-        </div>
-      </div>
-    </div>
-    <div class="stat-pills">
-      <div class="stat-pill"><div class="k">在籍會員</div><div class="v accent-teal">${summary.active}</div></div>
-      <div class="stat-pill"><div class="k">已離會</div><div class="v">${summary.left}</div></div>
-      <div class="stat-pill"><div class="k">分會數</div><div class="v accent-gold">${summary.chapters}</div></div>
-      <div class="stat-pill"><div class="k">專業別種類</div><div class="v">${summary.professions}</div></div>
-    </div>
-  </div>`;
-}
-
-function membersPage({ members, chapters, professions, filters, canEdit, canImport, user, summary }) {
+function memberTable(members, canEdit) {
+  if (!members.length) {
+    return `<div class="empty-state">此分會目前沒有在籍會員</div>`;
+  }
   const rows = members
-    .map((m) => {
-      const roleLabel = managementRoleLabel(m);
-      const roleCls = m.account_role === 'executive' ? 'gold' : m.account_role === 'advisor' ? '' : 'muted';
-      const statusTag =
-        m.status === 'left'
-          ? `<span class="tag danger">已離會${m.left_at ? ' ' + fmtDate(m.left_at) : ''}</span>`
-          : `<span class="tag">在籍</span>`;
-      return `<tr class="${m.status === 'left' ? 'status-left' : ''}">
+    .map(
+      (m) => `<tr>
         <td>${esc(m.name)}</td>
-        <td>${esc(m.chapter_name)}</td>
         <td>${m.profession_name ? esc(m.profession_name) : '<span class="small">未設定</span>'}</td>
-        <td><span class="tag ${roleCls}">${esc(roleLabel)}</span></td>
-        <td>${statusTag}</td>
+        <td>${
+          m.tag_names
+            ? m.tag_names
+                .split('、')
+                .map((t) => `<span class="tag muted">${esc(t)}</span>`)
+                .join(' ')
+            : '<span class="small">—</span>'
+        }</td>
         <td>
           ${canEdit ? `<a class="btn btn-outline btn-sm" href="/members/${m.id}/edit">編輯</a> ` : ''}
           ${
-            canEdit && m.status === 'active'
+            canEdit
               ? `<form class="inline" method="post" action="/members/${m.id}/leave" onsubmit="return confirm('確定將「${esc(
                   m.name
                 )}」設定為離會？');"><button class="btn btn-danger btn-sm" type="submit">離會</button></form>`
               : ''
           }
-          ${
-            canEdit && m.status === 'left'
-              ? `<form class="inline" method="post" action="/members/${m.id}/rejoin"><button class="btn btn-outline btn-sm" type="submit">恢復在籍</button></form>`
-              : ''
-          }
         </td>
-      </tr>`;
-    })
+      </tr>`
+    )
     .join('');
 
-  const q = filters.q || '';
+  return `<table>
+    <thead><tr><th>會員姓名</th><th>專業別</th><th>行業標籤</th><th>操作</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function membersPage({ tree, selectedChapterId, selectedChapter, officers, members, canEdit, canImport }) {
+  const nav = chapterNav(tree, selectedChapterId);
+
+  const content = selectedChapter
+    ? `
+    <div class="page-header">
+      <div>
+        <h1>${esc(selectedChapter.name)}</h1>
+        <div class="sub">在籍會員 ${members.length} 位</div>
+      </div>
+      <div class="toolbar">
+        ${canEdit ? `<a class="btn btn-primary" href="/members/new?chapter=${selectedChapter.id}">+ 新增會員</a>` : ''}
+        ${canImport ? `<a class="btn btn-gold" href="/members/import">匯入 Excel</a>` : ''}
+      </div>
+    </div>
+    ${officerBar(selectedChapter, officers)}
+    <div class="card">${memberTable(members, canEdit)}</div>
+  `
+    : `
+    <div class="page-header"><h1>會員資料</h1></div>
+    <div class="empty-state">請先在左側選擇一個分會</div>
+  `;
 
   return `
-  ${summary ? helloCard({ user, summary }) : ''}
-  <div class="page-header">
-    <div>
-      <h1>會員資料</h1>
-      <div class="sub">共 ${members.length} 筆資料${filters.showLeft ? '（含已離會）' : '（不含已離會）'}</div>
-    </div>
-    <div class="toolbar">
-      ${canEdit ? `<a class="btn btn-primary" href="/members/new">+ 新增會員</a>` : ''}
-      ${canImport ? `<a class="btn btn-gold" href="/members/import">匯入 Excel</a>` : ''}
-    </div>
-  </div>
-
-  <form method="get" action="/members">
-    <div class="filter-bar">
-      <div class="filter-group" style="flex:1; min-width:260px;">
-        <div class="title">搜尋姓名</div>
-        <input type="text" name="q" value="${esc(q)}" placeholder="輸入會員姓名關鍵字" />
-      </div>
-      <div class="filter-group" style="flex:2;">
-        <div class="title">依分會篩選</div>
-        ${checklist('chapter', chapters, filters.chapterIds)}
-      </div>
-      <div class="filter-group" style="flex:2;">
-        <div class="title">依專業別篩選</div>
-        ${checklist('profession', professions, filters.professionIds)}
-      </div>
-      <div class="filter-group">
-        <div class="title">顯示選項</div>
-        <label class="pill-check"><input type="checkbox" name="show_left" value="1" ${
-          filters.showLeft ? 'checked' : ''
-        } /> 顯示已離會會員</label>
-      </div>
-    </div>
-    <div class="toolbar">
-      <button class="btn btn-primary" type="submit">套用篩選</button>
-      <a class="btn btn-outline" href="/members">清除篩選</a>
-    </div>
-  </form>
-
-  <div class="card">
-    ${
-      members.length === 0
-        ? `<div class="empty-state">沒有符合條件的會員資料</div>`
-        : `<table>
-      <thead><tr><th>姓名</th><th>分會</th><th>專業別</th><th>目前管理職務</th><th>狀態</th><th>操作</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`
-    }
+  <div class="members-shell">
+    <div>${nav}</div>
+    <div>${content}</div>
   </div>
   `;
 }
 
-function memberFormPage({ member, chapters, professions, error }) {
+function memberFormPage({ member, chapters, professions, error, defaultChapterId }) {
   const isEdit = !!member;
+  const selectedChapterId = isEdit ? member.chapter_id : defaultChapterId;
+  const backHref = selectedChapterId ? `/members?chapter=${selectedChapterId}` : '/members';
   return `
-  <div class="breadcrumb"><a href="/members">會員資料</a> / ${isEdit ? '編輯會員' : '新增會員'}</div>
+  <div class="breadcrumb"><a href="${backHref}">會員資料</a> / ${isEdit ? '編輯會員' : '新增會員'}</div>
   <div class="page-header"><h1>${isEdit ? '編輯會員' : '新增會員'}</h1></div>
   ${error ? `<div class="alert alert-error">${esc(error)}</div>` : ''}
   <div class="card" style="max-width:520px;">
@@ -150,7 +128,7 @@ function memberFormPage({ member, chapters, professions, error }) {
           ${chapters
             .map(
               (c) =>
-                `<option value="${c.id}" ${isEdit && member.chapter_id === c.id ? 'selected' : ''}>${esc(
+                `<option value="${c.id}" ${String(selectedChapterId) === String(c.id) ? 'selected' : ''}>${esc(
                   c.name
                 )}</option>`
             )
@@ -177,7 +155,7 @@ function memberFormPage({ member, chapters, professions, error }) {
         <textarea name="notes" rows="2">${isEdit ? esc(member.notes || '') : ''}</textarea>
       </div>
       <button class="btn btn-primary" type="submit">${isEdit ? '儲存變更' : '新增會員'}</button>
-      <a class="btn btn-outline" href="/members">取消</a>
+      <a class="btn btn-outline" href="${backHref}">取消</a>
     </form>
   </div>
   `;

@@ -411,6 +411,143 @@ input:focus, select:focus, textarea:focus {
 
 .empty-state { text-align: center; padding: 40px 20px; color: var(--ink-soft); }
 
+/* ---------- 職務設定：樹狀選單 ---------- */
+
+.tree {
+  border-left: 2px solid var(--border);
+  padding-left: 4px;
+  margin: 10px 0 16px 6px;
+}
+
+.tree-chapter {
+  border-radius: var(--radius-md);
+  background: var(--shell);
+  margin: 0 0 10px 10px;
+  position: relative;
+}
+.tree-chapter::before {
+  content: '';
+  position: absolute;
+  left: -16px;
+  top: 20px;
+  width: 12px;
+  height: 1px;
+  background: var(--border);
+}
+.tree-chapter.dragging { opacity: 0.4; }
+
+.tree-chapter-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  flex-wrap: wrap;
+}
+
+.drag-handle {
+  cursor: grab;
+  color: var(--ink-soft);
+  font-size: 16px;
+  user-select: none;
+  flex-shrink: 0;
+}
+.drag-handle:active { cursor: grabbing; }
+
+.tree-toggle {
+  border: none;
+  background: #fff;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 11px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  flex-shrink: 0;
+  box-shadow: var(--shadow);
+}
+.tree-toggle:hover { color: var(--teal-dark); }
+
+.tree-chapter-name { font-weight: 800; font-size: 14px; color: var(--ink); flex-shrink: 0; }
+.tree-advisors { font-size: 12.5px; color: var(--ink-soft); display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.tree-meta { margin-left: auto; white-space: nowrap; }
+
+.tree-members {
+  margin: 0 14px 12px 46px;
+  padding: 10px 14px;
+  background: #fff;
+  border-radius: var(--radius-sm);
+  border-left: 2px solid var(--border);
+}
+.tree-member {
+  font-size: 13px;
+  padding: 4px 0;
+  color: var(--ink);
+}
+.tree-member:not(:last-child) { border-bottom: 1px dashed var(--border); }
+
+.officer-summary { margin-bottom: 10px; }
+.officer-forms {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  margin-bottom: 12px;
+  background: var(--shell);
+  border-radius: var(--radius-sm);
+}
+.officer-row { display: flex; align-items: center; gap: 8px; margin: 0; }
+.officer-label { font-size: 12px; font-weight: 700; color: var(--ink-soft); width: 64px; flex-shrink: 0; }
+.officer-row select { padding: 6px 10px; font-size: 12.5px; }
+.tree-member-list-title { font-weight: 700; margin-bottom: 4px; }
+
+/* ---------- 會員資料：三欄樹狀 + 明細版面 ---------- */
+
+.members-shell {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 18px;
+  align-items: start;
+}
+@media (max-width: 900px) { .members-shell { grid-template-columns: 1fr; } }
+
+.chapter-nav { padding: 8px; }
+.chapter-nav .region-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 8px 10px 4px;
+}
+.chapter-nav-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  margin: 0 4px 6px 4px;
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  font-size: 13px;
+}
+.chapter-nav-item:hover { background: var(--shell); text-decoration: none; }
+.chapter-nav-item.active { background: var(--ink); color: #fff; }
+.chapter-nav-item .cn-advisor { font-size: 11.5px; color: var(--ink-soft); }
+.chapter-nav-item.active .cn-advisor { color: rgba(255,255,255,0.75); }
+
+.officer-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 26px;
+  background: var(--teal-light);
+  border-radius: var(--radius-md);
+  padding: 14px 18px;
+  margin-bottom: 18px;
+  font-size: 13px;
+}
+.officer-bar .officer-item b { color: var(--teal-dark); }
+.officer-bar .officer-item .prof { color: var(--ink-soft); font-size: 12px; }
+
 .small { font-size: 12px; color: var(--ink-soft); }
 .mt-0 { margin-top: 0; }
 .mb-0 { margin-bottom: 0; }
