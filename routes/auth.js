@@ -9,7 +9,7 @@ const { loginPage } = require('../views/login');
 const { ah } = require('../lib/async-handler');
 
 router.get('/login', (req, res) => {
-  if (req.user) return res.redirect('/members');
+  if (req.user) return res.redirect('/');
   res.send(loginPage({}));
 });
 
@@ -19,13 +19,13 @@ router.post(
     const { username, password } = req.body;
     const user = await db.get('SELECT * FROM users WHERE username = ?', [String(username || '').trim()]);
     if (!user || !user.active) {
-      return res.status(401).send(loginPage({ error: '帳號不存在或已被停用。' }));
+      return res.status(401).send(loginPage({ error: '帳號不存在或已被停用。', username }));
     }
     if (!verifyPassword(password || '', user.salt, user.password_hash)) {
-      return res.status(401).send(loginPage({ error: '帳號或密碼錯誤。' }));
+      return res.status(401).send(loginPage({ error: '帳號或密碼錯誤。', username }));
     }
     setSessionCookie(res, user.id);
-    res.redirect('/members');
+    res.redirect('/');
   })
 );
 

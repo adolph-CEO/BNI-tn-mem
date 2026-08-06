@@ -1,6 +1,6 @@
-# CRM 會員管理系統
+# BNI CRM 會員管理
 
-區域 → 分會 → 會員的會員管理平台。單一公開頁面（無登入、無帳號權限），前端為 vanilla JS 單頁應用，後端 Node.js + Express 提供 JSON API，資料庫使用 PostgreSQL，可直接部署到 Vercel（搭配 Neon / Vercel Postgres 等雲端資料庫），也可部署到任何支援 Node.js 的平台。
+區域 → 分會 → 會員的會員管理平台。需登入才能使用（帳號密碼登入，見下方 Demo 帳號），登入後目前所有角色看到同一份完整畫面（尚未依角色分層限制可視範圍，屬後續規劃）。前端為 vanilla JS 單頁應用，後端 Node.js + Express 提供 JSON API，資料庫使用 PostgreSQL，可直接部署到 Vercel（搭配 Neon / Vercel Postgres 等雲端資料庫），也可部署到任何支援 Node.js 的平台。
 
 ## 系統架構
 
@@ -8,7 +8,7 @@
 - **分會（Chapter）**：隸屬於區域，名稱可直接重新命名。
 - **會員（Member）**：隸屬於唯一一個分會，具有姓名、專業別、在籍狀態；可指派「主席／副主席／秘財」職務（每項職務同一分會僅一人），並可標記是否為「執行董事」——職務直接掛在會員身上，不需另外開帳號。
 - **行業別 / 專業別**：專業別一對一歸屬於某個行業別（例如「會計記帳」屬於「專業服務」）。
-- **無登入**：全站公開，所有人看到並操作同一份資料，沒有角色分層權限。
+- **登入**：需帳號密碼登入才能使用；登入後目前所有角色（超級管理員／職董／董顧）看到並操作同一份資料，尚未依角色分層限制可視範圍或可操作項目（後續規劃）。
 
 ## 快速開始（本機開發）
 
@@ -24,7 +24,17 @@ npm run seed          # 建立資料表結構 + Demo 資料
 npm run start:env     # 啟動伺服器，預設 http://localhost:3000
 ```
 
-首次啟動會自動建立/遷移資料表結構（`db.ensureSchema()`），不需要額外的帳號設定步驟。
+首次啟動會自動建立/遷移資料表結構（`db.ensureSchema()`）並自動建立可登入的示範帳號（`ensureBootstrapAccounts()`），不需要額外手動設定步驟。
+
+## Demo 帳號（首次啟動自動建立）
+
+| 帳號 | 密碼 | 身分 |
+|---|---|---|
+| `admin`（可用 `ADMIN_USERNAME`／`ADMIN_PASSWORD` 覆寫） | `admin1234` | 超級管理員 |
+| `director01` | `director123` | 職董示範帳號 |
+| `advisor01` | `advisor123` | 董顧示範帳號 |
+
+這幾個帳號只在資料庫裡「不存在同名帳號時」才會建立，不會覆蓋既有密碼——正式站若已有同名帳號會直接略過。目前登入後所有角色看到同一份完整畫面，尚未依角色限制可視範圍／可操作項目。
 
 ## Demo 資料（執行 `npm run seed` 後）
 
@@ -92,6 +102,8 @@ Vercel 是無伺服器（serverless）架構，函式執行完就會被回收，
 |---|---|
 | `DATABASE_URL` | PostgreSQL 連線字串（必填） |
 | `PORT` | 本機執行時的埠號，預設 3000（Vercel 上不需要） |
+| `SESSION_SECRET` | 登入 session 簽章密鑰（必填，正式環境請改成隨機長字串） |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | 預設超級管理員帳密（選填，未設定預設為 `admin` / `admin1234`，正式環境請務必修改） |
 
 ## 目錄結構
 
@@ -100,15 +112,18 @@ bni/
 ├── server.js            # Express app 定義（本機直接執行會呼叫 app.listen）
 ├── api/index.js         # Vercel Serverless 進入點（匯出同一個 app，不呼叫 listen）
 ├── vercel.json           # 將所有路徑導向 api/index.js（style.css / app.js 例外，走靜態檔案）
-├── lib/                  # 資料庫連線、資料存取（crm-data.js）、Demo 資料
-├── routes/api.js          # JSON API（無登入，全站公開）
-├── views/shell.js         # 單頁應用的 HTML 殼層（內嵌初始資料）
+├── lib/                  # 資料庫連線、資料存取（crm-data.js）、登入/session（auth.js）、示範帳號（bootstrap.js）、Demo 資料
+├── routes/auth.js         # 登入／登出（GET·POST /login、POST /logout）
+├── routes/api.js          # JSON API（需登入，見 lib/auth.js 的 requireAuthJson）
+├── views/login.js          # 登入頁（藍圖風格 + 矩陣雨動畫背景）
+├── views/shell.js         # 單頁應用的 HTML 殼層（需登入，內嵌初始資料含目前登入者資訊）
 ├── public/app.js          # 前端 vanilla JS（畫面渲染、篩選、分頁、CSV 匯入等互動）
+├── public/login.js        # 登入頁背景動畫（vanilla JS）
 ├── public/style.css       # 藍圖／工程圖風格設計系統
 └── data/                  # 本機開發用暫存目錄（非資料庫）
 ```
 
-`lib/`、`routes/`、`views/` 底下仍留有舊版（登入 + 伺服器端渲染多頁）的檔案未刪除，但 `server.js` 已不再引用，屬於未使用的死碼，之後確認新版穩定後可以清理。
+`lib/`、`views/` 底下仍留有更早期版本（伺服器端渲染多頁）的檔案未刪除，但 `server.js` 已不再引用，屬於未使用的死碼，之後確認新版穩定後可以清理。
 
 ## 技術選型說明
 

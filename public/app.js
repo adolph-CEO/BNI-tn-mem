@@ -163,7 +163,7 @@
   function renderNav(v) {
     const dot = (view) => (state.view === view ? ' aria-current="page"' : '');
     document.getElementById('nav').innerHTML = `
-      <div class="nav-brand">CRM 會員管理</div>
+      <div class="nav-brand" style="color:var(--color-brand-red)">BNI CRM 會員管理</div>
       ${state.isEditingRegion
         ? `<input class="input" style="width:140px" id="region-input" value="${esc(state.regionNameDraft)}">
            <button class="btn btn-primary" style="font-size:12px" data-action="region-save">儲存</button>`
@@ -173,6 +173,10 @@
       <a href="#" data-action="goto" data-view="dashboard"${dot('dashboard')} style="margin-left:24px">儀表板</a>
       <a href="#" data-action="goto" data-view="members"${dot('members')}>會員列表</a>
       <a href="#" data-action="goto" data-view="chapters"${dot('chapters')}>分會管理</a>
+      ${DATA.currentUser ? `
+        <span class="tag tag-neutral" style="margin-left:16px">${esc(DATA.currentUser.roleLabel)}．${esc(DATA.currentUser.displayName)}</span>
+        <form method="post" action="/logout" style="margin:0"><button class="btn btn-ghost" style="font-size:12px" type="submit">登出</button></form>
+      ` : ''}
     `;
     const input = document.getElementById('region-input');
     if (input) {

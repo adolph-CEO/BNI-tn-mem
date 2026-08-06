@@ -1,25 +1,33 @@
 // server.js — CRM 會員管理系統
 // 同時支援：本機/傳統伺服器（node server.js 直接監聽埠號）
 //          與 Vercel Serverless（由 api/index.js 匯出 app，不呼叫 app.listen）
-// 無登入／無帳號權限：全站公開存取單一畫面（儀表板／會員列表／分會管理）。
+//
+// 登入：預設 admin 帳號 + 職董／董顧示範帳號皆可登入（見 lib/bootstrap.js）。
+// 登入後所有角色目前看到同一份完整畫面，尚未依角色限制可視範圍／可操作項目
+// （這部分之後會再補上，目前僅需求「先能登入」）。
 'use strict';
 
 const express = require('express');
 const path = require('path');
 const db = require('./lib/db');
 const crm = require('./lib/crm-data');
+const { attachUser, requireAuth } = require('./lib/auth');
+const { ensureBootstrapAccounts } = require('./lib/bootstrap');
 const { shellPage } = require('./views/shell');
 const { ah } = require('./lib/async-handler');
 
 const app = express();
 app.set('trust proxy', 1);
 
-// 首次冷啟動時要等資料庫 schema（含遷移）建立完成才處理請求；
+// 首次冷啟動時要等資料庫 schema（含遷移）與預設帳號建立完成才處理請求；
 // 之後同一個執行個體（warm）會直接沿用已完成的 promise。
-const readyPromise = db.ensureSchema().catch((err) => {
-  console.error('系統初始化失敗（請確認 DATABASE_URL 是否正確設定）：', err);
-  throw err;
-});
+const readyPromise = db
+  .ensureSchema()
+  .then(() => ensureBootstrapAccounts())
+  .catch((err) => {
+    console.error('系統初始化失敗（請確認 DATABASE_URL 是否正確設定）：', err);
+    throw err;
+  });
 
 app.use((req, res, next) => {
   readyPromise.then(() => next()).catch((err) => {
@@ -32,14 +40,17 @@ app.use((req, res, next) => {
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(attachUser);
 
+app.use('/', require('./routes/auth'));
 app.use('/', require('./routes/api'));
 
 app.get(
   '/',
+  requireAuth,
   ah(async (req, res) => {
     const data = await crm.getAppData();
-    res.send(shellPage({ data }));
+    res.send(shellPage({ data, user: req.user }));
   })
 );
 

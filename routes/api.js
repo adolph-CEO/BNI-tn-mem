@@ -1,4 +1,4 @@
-// routes/api.js — 單頁應用的 JSON API（無登入，全站公開存取）
+// routes/api.js — 單頁應用的 JSON API（需登入；角色權限限制尚未實作，後補）
 'use strict';
 
 const express = require('express');
@@ -6,16 +6,24 @@ const multer = require('multer');
 const router = express.Router();
 
 const { ah } = require('../lib/async-handler');
+const { requireAuthJson } = require('../lib/auth');
 const crm = require('../lib/crm-data');
 const db = require('../lib/db');
 
+const ROLE_LABEL = { admin: '超級管理員', executive: '職董', advisor: '董顧' };
+
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+router.use('/api', requireAuthJson);
 
 router.get(
   '/api/data',
   ah(async (req, res) => {
     const data = await crm.getAppData();
-    res.json(data);
+    res.json({
+      ...data,
+      currentUser: { displayName: req.user.display_name, role: req.user.role, roleLabel: ROLE_LABEL[req.user.role] || req.user.role },
+    });
   })
 );
 
