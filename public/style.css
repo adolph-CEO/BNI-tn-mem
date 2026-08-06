@@ -29,6 +29,8 @@
     radial-gradient(ellipse 800px 700px at 112% 18%, rgba(255,255,255,0.10), transparent 55%),
     radial-gradient(ellipse 750px 900px at -12% 92%, rgba(0,0,0,0.16), transparent 58%),
     linear-gradient(155deg, var(--red-deep) 0%, var(--red-mid) 55%, var(--red-light) 100%);
+  /* 底圖：深紅絲綢漸層 + 局部網格節點 + 亞太點陣地圖（局部裁切，非完整世界地圖） */
+  --page-bg-image: url('/img/bg-red-silk-map.jpg');
 }
 
 * { box-sizing: border-box; }
@@ -37,7 +39,7 @@ html, body {
   margin: 0;
   padding: 0;
   min-height: 100vh;
-  background: var(--page-gradient);
+  background: var(--page-bg-image) center center / cover no-repeat fixed, var(--page-gradient);
   background-attachment: fixed;
   color: var(--ink);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
@@ -407,7 +409,7 @@ input:focus, select:focus, textarea:focus {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--page-gradient);
+  background: var(--page-bg-image) center center / cover no-repeat fixed, var(--page-gradient);
 }
 .login-card {
   width: 372px;
