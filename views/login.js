@@ -1,4 +1,4 @@
-// views/login.js — 登入頁（藍圖風格 + 矩陣雨動畫背景），比照參考檔案視覺設計
+// views/login.js — 登入頁（紙雕視覺：藏青紙質底 + 米白挖空品牌字 + 米白卡片 + 黃色按鈕）
 'use strict';
 
 const { esc } = require('../lib/util');
@@ -22,14 +22,12 @@ function loginPage({ error, username } = {}) {
   </div>
   <div style="position:relative;width:100%;max-width:400px;padding:0 20px">
     <div style="position:relative;z-index:1">
-      <div style="text-align:center;margin-bottom:24px">
-        <div style="font-family:var(--font-heading);font-weight:600;font-size:28px;letter-spacing:0.02em;color:var(--color-brand-red)">BNI CRM 會員管理</div>
-        <div class="text-muted" style="margin-top:6px;font-size:13px">請登入以繼續</div>
+      <div style="text-align:center;margin-bottom:28px">
+        <div class="login-brand">BNI CRM 會員管理</div>
+        <div class="text-muted" style="margin-top:8px;font-size:13px">請登入以繼續</div>
       </div>
 
-      <form class="card blueprint elev-md" style="display:flex;flex-direction:column;gap:16px;background:var(--color-bg)" method="post" action="/login">
-        <i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
-
+      <form class="login-card" style="display:flex;flex-direction:column;gap:16px;padding:28px 24px;border-radius:4px" method="post" action="/login">
         <div class="field">
           <label for="username">帳號</label>
           <input class="input" id="username" name="username" type="text" placeholder="輸入帳號" value="${esc(username || '')}" autofocus autocomplete="username">
@@ -45,9 +43,9 @@ function loginPage({ error, username } = {}) {
           記住我
         </label>
 
-        <button type="submit" class="btn btn-primary btn-block">登入</button>
+        <button type="submit" class="btn btn-login-gold btn-block">登入</button>
 
-        ${error ? `<div class="tag tag-outline" style="width:fit-content">${esc(error)}</div>` : ''}
+        ${error ? `<div class="tag tag-outline" style="width:fit-content;border-color:var(--paper-gold-deep);color:var(--paper-navy-900)">${esc(error)}</div>` : ''}
       </form>
 
       <div style="text-align:center;margin-top:16px">

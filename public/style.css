@@ -8,8 +8,18 @@
   --color-text: #1d1f20;
   --color-accent: #5980a6;
   --color-accent-2: #728fab;
-  --color-brand-red: #7a2e22; /* 藏紅色，僅用於品牌名稱文字 */
+  --color-brand-red: #7a2e22; /* 藏紅色，僅用於品牌名稱文字（舊版，逐步淘汰中） */
   --color-divider: color-mix(in srgb, #1d1f20 16%, transparent);
+
+  /* 新版「紙雕」視覺系統色票：藏青＋米白紙質紋理＋黃色強調色。
+     目前只套用在登入頁，之後會逐步擴大到整個系統，屆時會取代上面藍圖風格的變數。 */
+  --paper-navy-900: #050f14;
+  --paper-navy-700: #12333f;
+  --paper-navy-500: #20505f;
+  --paper-cream: #f6f1e6;
+  --paper-cream-warm: #e9d9b8;
+  --paper-gold: #e8a934;
+  --paper-gold-deep: #c98a1f;
 
   --color-neutral-100: #f5f5f8;
   --color-neutral-200: #e7e7ea;
@@ -221,7 +231,7 @@ details > summary::-webkit-details-marker { display: none; }
 }
 
 /* ══════════════════════════════════════════════════════════════════════
-   登入頁（views/login.js + public/login.js）
+   登入頁（views/login.js）— 紙雕視覺：藏青紙質底 + 米白挖空文字 + 米白卡片 + 黃色按鈕
    ══════════════════════════════════════════════════════════════════ */
 
 .login-wrap {
@@ -231,8 +241,8 @@ details > summary::-webkit-details-marker { display: none; }
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(ellipse farthest-corner at center, var(--color-bg) 0%, var(--color-bg) 35%, var(--color-neutral-500) 75%, var(--color-neutral-800) 100%);
-  color: var(--color-text);
+  background: var(--paper-navy-700) url('/img/bg-login-navy-paper.jpg') center center / cover no-repeat fixed;
+  color: var(--paper-cream);
   font-family: var(--font-body);
 }
 .login-rain-layer {
@@ -242,3 +252,46 @@ details > summary::-webkit-details-marker { display: none; }
   overflow: hidden;
   transition: transform 0.25s ease-out;
 }
+
+/* 品牌名稱：米白「挖空」效果——文字本身是米白色，靠陰影暗示藏青紙面被挖穿、露出下層米白紙的層次感 */
+.login-brand {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 30px;
+  letter-spacing: 0.02em;
+  color: var(--paper-cream);
+  text-shadow:
+    0 2px 1px rgba(5, 15, 20, 0.55),
+    0 5px 10px rgba(5, 15, 20, 0.5),
+    0 1px 0 rgba(5, 15, 20, 0.35);
+}
+
+/* 登入卡片：米白紙質卡片，疊在藏青底圖上，靠陰影營造「疊上去」的層次 */
+.login-card {
+  background: var(--paper-cream);
+  color: var(--paper-navy-900);
+  border: none;
+  box-shadow: 0 18px 50px rgba(5, 15, 20, 0.45), 0 2px 6px rgba(5, 15, 20, 0.25);
+}
+.login-card .field > label { color: color-mix(in srgb, var(--paper-navy-900) 65%, transparent); }
+.login-card .input {
+  background: color-mix(in srgb, var(--paper-navy-900) 4%, white);
+  border-color: color-mix(in srgb, var(--paper-navy-900) 18%, transparent);
+  color: var(--paper-navy-900);
+}
+.login-card .input:focus { border-color: var(--paper-gold-deep); outline-color: var(--paper-gold); }
+
+/* 登入按鈕：黃色強調色 */
+.btn-login-gold {
+  background: var(--paper-gold);
+  color: var(--paper-navy-900);
+  border: 1px solid var(--paper-gold-deep);
+  font-weight: 600;
+}
+.btn-login-gold:hover { background: var(--paper-gold-deep); }
+.btn-login-gold:active { background: color-mix(in srgb, var(--paper-gold-deep) 85%, black); }
+
+/* 藏青底色上的次要文字／連結，改用米白色系，避免沿用預設的深色文字看不見 */
+.login-wrap .text-muted { color: color-mix(in srgb, var(--paper-cream) 68%, transparent); }
+.login-wrap > div a { color: var(--paper-gold); }
+.login-wrap > div a:hover { color: var(--paper-gold-deep); }

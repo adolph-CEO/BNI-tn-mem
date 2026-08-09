@@ -8,8 +8,9 @@
   if (!canvas || !rainLayer || !wrap) return;
 
   const glyphs = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン0123456789'.split('');
-  const rainColor = '#a7c1da';
-  const wordColor = '#3c6a92';
+  // 顏色改配合新版紙雕視覺（藏青底＋米白／黃色強調），不再沿用舊版藍色調
+  const rainColor = '#f6f1e6';
+  const wordColor = '#e8a934';
   const words = ['BNI', 'ATTENDANCE', 'CEUS', '1-TO-1S', 'VISITORS', 'REFERRALS'];
 
   let ctx, w, h, charW, charH, columns;
