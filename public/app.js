@@ -28,7 +28,14 @@
     editingChapterId: null,
     chapterNameDraft: '',
     importMessage: '',
+    isAssigningExecDirector: false,
+    execDirectorSearchDraft: '',
+    execDirectorSelectedId: null,
   };
+
+  function pencilIcon() {
+    return '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>';
+  }
 
   async function refreshData() {
     const res = await fetch('/api/data');
@@ -62,7 +69,18 @@
 
     const execDirectors = members
       .filter((m) => m.execDirector)
-      .map((m) => ({ name: m.name, chapterName: chMap[m.chapterId] ? chMap[m.chapterId].name : '' }));
+      .map((m) => ({ id: m.id, name: m.name, chapterName: chMap[m.chapterId] ? chMap[m.chapterId].name : '' }));
+
+    const execDirectorSearch = (state.execDirectorSearchDraft || '').trim();
+    const execDirectorCandidates = execDirectorSearch
+      ? members
+          .filter((m) => m.status === 'active' && !m.execDirector && m.name.includes(execDirectorSearch))
+          .slice(0, 8)
+          .map((m) => ({ id: m.id, name: m.name, chapterName: chMap[m.chapterId] ? chMap[m.chapterId].name : '' }))
+      : [];
+    const execDirectorSelectedMember = state.execDirectorSelectedId
+      ? members.find((m) => m.id === state.execDirectorSelectedId)
+      : null;
 
     const chapterCounts = chapters.map((ch) => ({ id: ch.id, name: ch.name, count: filtered.filter((m) => m.chapterId === ch.id).length }));
     const maxChapterCount = Math.max(1, ...chapterCounts.map((c) => c.count));
@@ -152,6 +170,11 @@
       showSidebar: state.view === 'dashboard' || state.view === 'members',
       filterSummary, kpiTotalMembers, kpiChapterCount, kpiIndustryCount, kpiRolesFilled, kpiRolesTotal: rolesTotal,
       execDirectors,
+      isAssigningExecDirector: state.isAssigningExecDirector,
+      execDirectorSearchDraft: state.execDirectorSearchDraft,
+      execDirectorCandidates,
+      execDirectorSelectedId: state.execDirectorSelectedId,
+      execDirectorSelectedName: execDirectorSelectedMember ? execDirectorSelectedMember.name : '',
       chapterBars, professionBars, industryFilterRows, chapterFilterRows, rosterRows,
       memberRows, memberTotalCount, memberPage: page, memberTotalPages,
       isFirstPage: page <= 1, isLastPage: page >= memberTotalPages,
@@ -268,10 +291,33 @@
       </div>
 
       <div class="card blueprint elev-sm">${corners()}
-        <div class="card-kicker">執行董事（執董）</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          ${v.execDirectors.map((ed) => `<span class="tag tag-accent">${esc(ed.name)} · ${esc(ed.chapterName)}</span>`).join('') || '<span class="text-muted" style="font-size:13px">尚未指派</span>'}
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <div class="card-kicker">執行董事（執董）</div>
+          ${v.isAssigningExecDirector ? '' : `<button type="button" class="btn btn-ghost" style="font-size:11px;padding:2px 6px" data-action="exec-director-edit-start" title="指派執行董事">${pencilIcon()}</button>`}
         </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+          ${v.execDirectors.map((ed) => `
+            <span class="tag tag-accent" style="display:inline-flex;align-items:center;gap:6px">
+              ${esc(ed.name)} · ${esc(ed.chapterName)}
+              <button type="button" data-action="exec-director-remove" data-id="${ed.id}" title="取消指派執董" style="border:none;background:none;cursor:pointer;padding:0;font-size:13px;line-height:1;color:inherit">×</button>
+            </span>`).join('') || '<span class="text-muted" style="font-size:13px">尚未指派</span>'}
+        </div>
+        ${v.isAssigningExecDirector ? `
+          <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--color-divider);display:flex;flex-direction:column;gap:8px">
+            <input class="input" id="exec-director-search-input" placeholder="輸入姓名搜尋在會會員…" value="${esc(v.execDirectorSearchDraft || '')}" autocomplete="off">
+            ${v.execDirectorCandidates.length
+              ? `<div style="display:flex;flex-direction:column;gap:4px;max-height:160px;overflow:auto">
+                  ${v.execDirectorCandidates.map((c) => `
+                    <button type="button" data-action="exec-director-pick" data-id="${c.id}" class="btn ${v.execDirectorSelectedId === c.id ? 'btn-primary' : 'btn-ghost'}" style="justify-content:flex-start;font-size:12.5px">
+                      ${esc(c.name)} <span class="text-muted" style="margin-left:6px">${esc(c.chapterName)}</span>
+                    </button>`).join('')}
+                 </div>`
+              : (v.execDirectorSearchDraft ? '<div class="text-muted" style="font-size:12px">找不到符合的在會會員</div>' : '')}
+            <div style="display:flex;gap:8px;align-items:center">
+              <button type="button" class="btn btn-primary" style="font-size:12px" data-action="exec-director-confirm" ${v.execDirectorSelectedId ? '' : 'disabled'}>確認${v.execDirectorSelectedName ? '：' + esc(v.execDirectorSelectedName) : ''}</button>
+              <button type="button" class="btn btn-ghost" style="font-size:12px" data-action="exec-director-cancel">取消</button>
+            </div>
+          </div>` : ''}
       </div>
 
       <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:16px;align-items:start">
@@ -493,6 +539,54 @@
       if (input) { input.focus(); input.select(); }
       return;
     }
+    if (action === 'exec-director-edit-start') {
+      state.isAssigningExecDirector = true;
+      state.execDirectorSearchDraft = '';
+      state.execDirectorSelectedId = null;
+      render();
+      const input = document.getElementById('exec-director-search-input');
+      if (input) input.focus();
+      return;
+    }
+    if (action === 'exec-director-cancel') {
+      state.isAssigningExecDirector = false;
+      state.execDirectorSearchDraft = '';
+      state.execDirectorSelectedId = null;
+      return render();
+    }
+    if (action === 'exec-director-pick') {
+      state.execDirectorSelectedId = Number(el.dataset.id);
+      return render();
+    }
+    if (action === 'exec-director-confirm') {
+      if (!state.execDirectorSelectedId) return;
+      const member = DATA.members.find((m) => m.id === state.execDirectorSelectedId);
+      if (!member) return;
+      // 職務(role)欄位在後端是整筆覆蓋，指派執董時要把該會員原本的職務原封不動送回去，避免誤清空。
+      await fetch(`/api/members/${member.id}/role`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'role=' + encodeURIComponent(member.role || '') + '&execDirector=1',
+      });
+      await refreshData();
+      state.isAssigningExecDirector = false;
+      state.execDirectorSearchDraft = '';
+      state.execDirectorSelectedId = null;
+      return render();
+    }
+    if (action === 'exec-director-remove') {
+      const id = Number(el.dataset.id);
+      const member = DATA.members.find((m) => m.id === id);
+      if (!member) return;
+      // 後端用 !!req.body.execDirector 判斷，字串 "0" 仍是 truthy，所以要移除時直接不送這個欄位（而不是送 0）。
+      await fetch(`/api/members/${id}/role`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'role=' + encodeURIComponent(member.role || ''),
+      });
+      await refreshData();
+      return render();
+    }
   }
 
   async function saveChapterName() {
@@ -563,6 +657,14 @@
       if (e.key === 'Enter') saveChapterName();
       if (e.key === 'Escape') { state.editingChapterId = null; render(); }
     }
+    if (e.target.id === 'exec-director-search-input') {
+      if (e.key === 'Escape') {
+        state.isAssigningExecDirector = false;
+        state.execDirectorSearchDraft = '';
+        state.execDirectorSelectedId = null;
+        render();
+      }
+    }
   }
 
   function handleBlur(e) {
@@ -581,6 +683,20 @@
       searchDebounce = setTimeout(() => {
         const main = document.getElementById('main');
         main.innerHTML = renderMembers(computeVals());
+      }, 150);
+    }
+    if (e.target.id === 'exec-director-search-input') {
+      state.execDirectorSearchDraft = e.target.value;
+      state.execDirectorSelectedId = null;
+      clearTimeout(searchDebounce);
+      searchDebounce = setTimeout(() => {
+        const main = document.getElementById('main');
+        main.innerHTML = renderDashboard(computeVals());
+        const input = document.getElementById('exec-director-search-input');
+        if (input) {
+          input.focus();
+          input.selectionStart = input.selectionEnd = input.value.length;
+        }
       }, 150);
     }
   }
