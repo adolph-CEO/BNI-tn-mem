@@ -676,6 +676,10 @@
 
   let searchDebounce = null;
   function handleInput(e) {
+    // 注音／拼音等輸入法組字過程中會連續觸發 input 事件；若這時就重繪(換掉輸入框 DOM)，
+    // 會打斷輸入法的組字狀態，導致每敲一個注音符號就被當成已完成輸入。組字中先不處理，
+    // 等 compositionend 觸發時才真正送出搜尋字串。
+    if (e.isComposing) return;
     if (e.target.id === 'member-search') {
       state.memberSearch = e.target.value;
       state.memberPage = 1;
@@ -706,6 +710,9 @@
   document.getElementById('app').addEventListener('keydown', handleKeydown);
   document.getElementById('app').addEventListener('blur', handleBlur, true);
   document.getElementById('app').addEventListener('input', handleInput);
+  // 保險：組字結束當下的最終文字，交給同一段處理邏輯（多數瀏覽器 compositionend 後也會補一次
+  // isComposing=false 的 input 事件，這裡是避免少數瀏覽器沒補的情況）。
+  document.getElementById('app').addEventListener('compositionend', handleInput);
 
   render();
 })();
