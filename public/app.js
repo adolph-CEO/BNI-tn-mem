@@ -31,6 +31,9 @@
     isAssigningExecDirector: false,
     execDirectorSearchDraft: '',
     execDirectorSelectedId: null,
+    assigningAdvisorChapterId: null,
+    advisorSearchDraft: '',
+    advisorSelectedId: null,
   };
 
   function pencilIcon() {
@@ -147,14 +150,28 @@
       };
     });
 
+    const memberById = {}; members.forEach((m) => { memberById[m.id] = m; });
+
+    const advisorSearch = (state.advisorSearchDraft || '').trim();
+    const advisorCandidates = advisorSearch
+      ? members
+          .filter((m) => m.status === 'active' && m.name.includes(advisorSearch))
+          .slice(0, 8)
+          .map((m) => ({ id: m.id, name: m.name, chapterName: chMap[m.chapterId] ? chMap[m.chapterId].name : '' }))
+      : [];
+    const advisorSelectedMember = state.advisorSelectedId ? memberById[state.advisorSelectedId] : null;
+
     const chapterCards = chapters.map((ch) => {
       const r = roleHolders(ch.id);
       const isEditing = state.editingChapterId === ch.id;
+      const advisor = ch.advisorMemberId ? memberById[ch.advisorMemberId] : null;
       return {
         id: ch.id, name: ch.name, isEditing,
         chairman: r.chairman, vice: r.vice, secretary: r.secretary,
         active: r.active, total: r.total, inactive: r.total - r.active,
         chMembers: r.chMembers,
+        advisor,
+        isAssigningAdvisor: state.assigningAdvisorChapterId === ch.id,
       };
     });
 
@@ -175,6 +192,10 @@
       execDirectorCandidates,
       execDirectorSelectedId: state.execDirectorSelectedId,
       execDirectorSelectedName: execDirectorSelectedMember ? execDirectorSelectedMember.name : '',
+      advisorSearchDraft: state.advisorSearchDraft,
+      advisorCandidates,
+      advisorSelectedId: state.advisorSelectedId,
+      advisorSelectedName: advisorSelectedMember ? advisorSelectedMember.name : '',
       chapterBars, professionBars, industryFilterRows, chapterFilterRows, rosterRows,
       memberRows, memberTotalCount, memberPage: page, memberTotalPages,
       isFirstPage: page <= 1, isLastPage: page >= memberTotalPages,
@@ -290,7 +311,7 @@
         </div>
       </div>
 
-      <div class="card blueprint elev-sm">${corners()}
+      <div class="card blueprint elev-sm" style="background:var(--color-accent-100)">${corners()}
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
           <div class="card-kicker">執行董事（執董）</div>
           ${v.isAssigningExecDirector ? '' : `<button type="button" class="btn btn-ghost" style="font-size:11px;padding:2px 6px" data-action="exec-director-edit-start" title="指派執行董事">${pencilIcon()}</button>`}
@@ -426,7 +447,10 @@
   function renderChapters(v) {
     return `
     <div style="display:flex;flex-direction:column;gap:16px">
-      <h2 style="margin:0">分會管理</h2>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <h2 style="margin:0">分會管理</h2>
+        <button type="button" class="btn btn-secondary" data-action="add-chapter">+ 新增分會</button>
+      </div>
       <p class="text-muted" style="margin:0">共 ${v.chapters.length} 個分會</p>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
         ${v.chapterCards.map((c) => `
@@ -451,6 +475,36 @@
                 ${roleAssignRow(c.id, '秘財', c.secretary, c.chMembers)}
               </div>
             </details>
+            <div style="border-top:1px solid var(--color-divider);padding-top:8px;margin-top:2px">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                <span style="font-size:12px;font-weight:700;color:color-mix(in srgb, var(--color-text) 70%, transparent)">董顧</span>
+                ${c.isAssigningAdvisor ? '' : `<button type="button" class="btn btn-ghost" style="font-size:11px;padding:2px 6px" data-action="advisor-edit-start" data-id="${c.id}" title="指派董顧">${pencilIcon()}</button>`}
+              </div>
+              <div style="margin-top:4px">
+                ${c.advisor
+                  ? `<span class="tag tag-accent" style="display:inline-flex;align-items:center;gap:6px">
+                      ${esc(c.advisor.name)}
+                      <button type="button" data-action="advisor-remove" data-id="${c.id}" title="取消指派董顧" style="border:none;background:none;cursor:pointer;padding:0;font-size:13px;line-height:1;color:inherit">×</button>
+                     </span>`
+                  : '<span class="text-muted" style="font-size:13px">尚未指派</span>'}
+              </div>
+              ${c.isAssigningAdvisor ? `
+                <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px">
+                  <input class="input" id="advisor-search-input-${c.id}" placeholder="輸入姓名搜尋會員…" value="${esc(v.advisorSearchDraft || '')}" autocomplete="off">
+                  ${v.advisorCandidates.length
+                    ? `<div style="display:flex;flex-direction:column;gap:4px;max-height:160px;overflow:auto">
+                        ${v.advisorCandidates.map((cand) => `
+                          <button type="button" data-action="advisor-pick" data-id="${cand.id}" class="btn ${v.advisorSelectedId === cand.id ? 'btn-primary' : 'btn-ghost'}" style="justify-content:flex-start;font-size:12.5px">
+                            ${esc(cand.name)} <span class="text-muted" style="margin-left:6px">${esc(cand.chapterName)}</span>
+                          </button>`).join('')}
+                       </div>`
+                    : (v.advisorSearchDraft ? '<div class="text-muted" style="font-size:12px">找不到符合的在會會員</div>' : '')}
+                  <div style="display:flex;gap:8px;align-items:center">
+                    <button type="button" class="btn btn-primary" style="font-size:12px" data-action="advisor-confirm" data-id="${c.id}" ${v.advisorSelectedId ? '' : 'disabled'}>確認${v.advisorSelectedName ? '：' + esc(v.advisorSelectedName) : ''}</button>
+                    <button type="button" class="btn btn-ghost" style="font-size:12px" data-action="advisor-cancel">取消</button>
+                  </div>
+                </div>` : ''}
+            </div>
             <a href="#" data-action="view-chapter-members" data-id="${c.id}" class="btn btn-ghost" style="align-self:flex-start;padding-inline:0">查看會員 →</a>
           </div>`).join('')}
       </div>
@@ -587,6 +641,52 @@
       await refreshData();
       return render();
     }
+    if (action === 'add-chapter') {
+      const name = prompt('新分會名稱？');
+      if (!name || !name.trim()) return;
+      await fetch('/api/chapters', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'name=' + encodeURIComponent(name.trim()) });
+      await refreshData();
+      return render();
+    }
+    if (action === 'advisor-edit-start') {
+      state.assigningAdvisorChapterId = Number(el.dataset.id);
+      state.advisorSearchDraft = '';
+      state.advisorSelectedId = null;
+      render();
+      const input = document.getElementById('advisor-search-input-' + state.assigningAdvisorChapterId);
+      if (input) input.focus();
+      return;
+    }
+    if (action === 'advisor-cancel') {
+      state.assigningAdvisorChapterId = null;
+      state.advisorSearchDraft = '';
+      state.advisorSelectedId = null;
+      return render();
+    }
+    if (action === 'advisor-pick') {
+      state.advisorSelectedId = Number(el.dataset.id);
+      return render();
+    }
+    if (action === 'advisor-confirm') {
+      const chapterId = Number(el.dataset.id);
+      if (!state.advisorSelectedId) return;
+      await fetch(`/api/chapters/${chapterId}/advisor`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'memberId=' + state.advisorSelectedId,
+      });
+      await refreshData();
+      state.assigningAdvisorChapterId = null;
+      state.advisorSearchDraft = '';
+      state.advisorSelectedId = null;
+      return render();
+    }
+    if (action === 'advisor-remove') {
+      const chapterId = Number(el.dataset.id);
+      await fetch(`/api/chapters/${chapterId}/advisor`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: '' });
+      await refreshData();
+      return render();
+    }
   }
 
   async function saveChapterName() {
@@ -665,6 +765,14 @@
         render();
       }
     }
+    if (e.target.id && e.target.id.startsWith('advisor-search-input-')) {
+      if (e.key === 'Escape') {
+        state.assigningAdvisorChapterId = null;
+        state.advisorSearchDraft = '';
+        state.advisorSelectedId = null;
+        render();
+      }
+    }
   }
 
   function handleBlur(e) {
@@ -697,6 +805,21 @@
         const main = document.getElementById('main');
         main.innerHTML = renderDashboard(computeVals());
         const input = document.getElementById('exec-director-search-input');
+        if (input) {
+          input.focus();
+          input.selectionStart = input.selectionEnd = input.value.length;
+        }
+      }, 150);
+    }
+    if (e.target.id && e.target.id.startsWith('advisor-search-input-')) {
+      const inputId = e.target.id;
+      state.advisorSearchDraft = e.target.value;
+      state.advisorSelectedId = null;
+      clearTimeout(searchDebounce);
+      searchDebounce = setTimeout(() => {
+        const main = document.getElementById('main');
+        main.innerHTML = renderChapters(computeVals());
+        const input = document.getElementById(inputId);
         if (input) {
           input.focus();
           input.selectionStart = input.selectionEnd = input.value.length;

@@ -38,11 +38,30 @@ router.post(
 );
 
 router.post(
+  '/api/chapters',
+  ah(async (req, res) => {
+    const name = String(req.body.name || '').trim();
+    if (!name) return res.status(400).json({ error: '名稱不可為空' });
+    const id = await crm.addChapter(name);
+    res.json({ ok: true, id });
+  })
+);
+
+router.post(
   '/api/chapters/:id',
   ah(async (req, res) => {
     const name = String(req.body.name || '').trim();
     if (!name) return res.status(400).json({ error: '名稱不可為空' });
     await crm.renameChapter(Number(req.params.id), name);
+    res.json({ ok: true });
+  })
+);
+
+router.post(
+  '/api/chapters/:id/advisor',
+  ah(async (req, res) => {
+    const memberId = req.body.memberId ? Number(req.body.memberId) : null;
+    await crm.setChapterAdvisor(Number(req.params.id), memberId);
     res.json({ ok: true });
   })
 );
