@@ -1,4 +1,4 @@
-# BNI CRM 會員管理
+# BNI CRM 會員管理( 執董的需求)
 
 區域 → 分會 → 會員的會員管理平台。需登入才能使用（帳號密碼登入，見下方 Demo 帳號），登入後目前所有角色看到同一份完整畫面（尚未依角色分層限制可視範圍，屬後續規劃）。前端為 vanilla JS 單頁應用，後端 Node.js + Express 提供 JSON API，資料庫使用 PostgreSQL，可直接部署到 Vercel（搭配 Neon / Vercel Postgres 等雲端資料庫），也可部署到任何支援 Node.js 的平台。
 
